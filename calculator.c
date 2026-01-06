@@ -201,10 +201,28 @@ void button_clicked(void* self, SEL sel, id sender) {
 }
 
 // ============================================================================
+// Delegate Class Setup
+// ============================================================================
+
+Class create_button_delegate_class(void) {
+	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "ButtonDelegate", 0);
+	
+	// Add method for button clicks
+	class_addMethod(delegate_class, sel_registerName("buttonClicked:"), (IMP)button_clicked, "v@:@");
+	
+	objc_registerClassPair(delegate_class);
+	return delegate_class;
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
 int main(int argc, char* argv[]) {
+	// Create delegate class and instance
+	Class delegate_class = create_button_delegate_class();
+	id button_delegate = objc_msgSend_id(NSAlloc(delegate_class), sel_registerName("init"));
+	
 	// Initialize app
 	NSApplication* app = objc_msgSend_id((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
 	objc_msgSend_void_int(app, sel_registerName("setActivationPolicy:"), 0); // NSApplicationActivationPolicyRegular
@@ -266,8 +284,8 @@ int main(int argc, char* argv[]) {
 			 btn_frame);
 		
 		objc_msgSend_void_id(button, sel_registerName("setTitle:"), cstring_to_nsstring(button_labels[i]));
-		objc_msgSend_void_id(button, sel_registerName("setTarget:"), (id)&button_clicked);
-		((void(*)(id, SEL, SEL))objc_msgSend)(button, sel_registerName("setAction:"), sel_registerName("button_clicked:"));
+		objc_msgSend_void_id(button, sel_registerName("setTarget:"), button_delegate);
+		((void(*)(id, SEL, SEL))objc_msgSend)(button, sel_registerName("setAction:"), sel_registerName("buttonClicked:"));
 		
 		objc_msgSend_void_id(content_view, sel_registerName("addSubview:"), button);
 	}
