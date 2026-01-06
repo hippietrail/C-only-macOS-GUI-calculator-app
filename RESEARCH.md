@@ -1,52 +1,63 @@
-# macOS C GUI Research
+# macOS Menu Bar Rendering Issue - Research
 
-## Conclusion: Use Cocoa via objc_msgSend
+## Problem
+Menu is functionally working (Cmd+Q quits) but doesn't render visually in the menu bar.
 
-The best approach for a native macOS GUI in C is to use **Cocoa via Objective-C runtime functions**, specifically `objc_msgSend` and related runtime APIs.
+## Investigation Results
 
-## Key Findings
+### What We Know
+1. Menu structure is correctly set up programmatically:
+   - NSMenu and NSMenuItem objects created successfully
+   - Menu items contain correct actions and key equivalents  
+   - Menu properly set as app's main menu via `setMainMenu:`
+   - The menu *functions* - Cmd+Q works, proving it's wired up
 
-### Why Cocoa-in-Pure-C?
-- Cocoa is the native modern macOS GUI framework
-- You can call it entirely from C without writing Objective-C
-- Uses C runtime functions: `objc_msgSend`, `objc_getClass`, `sel_registerName`, etc.
-- Compiled with `-framework AppKit -framework Foundation` flags
-- Two major projects use this: RGFW (single-header windowing) and Silicon.h (Cocoa wrapper)
+2. The issue is purely **visual rendering** in the menu bar
 
-### Architecture
-1. **Type Setup**: Define C equivalents for Cocoa types (NSWindow, NSApplication, etc.) as void pointers
-2. **Message Dispatch**: Use `objc_msgSend` with type-casted function pointers
-3. **Macros**: Define helper macros for common objc_msgSend patterns to reduce boilerplate
-4. **Callbacks**: Use `class_addMethod` to register custom delegate methods
-5. **Event Loop**: Use NSApplication's event loop to process clicks, keyboard, etc.
+### Root Cause Analysis
+macOS menu bar rendering is controlled by:
+- **Dock/Finder integration**: Requires Info.plist in app bundle
+- **Menu bar graphics rendering**: Handled by Windowserver/Aqua
+- **Bundle validation**: System checks for proper .app bundle structure
 
-### Compiler flags needed
-```bash
-gcc -lm -framework Foundation -framework AppKit -framework CoreVideo
+The menu bar in macOS is rendered by a system service that:
+1. Queries app bundles for Info.plist
+2. Reads app name, icon, and menu configuration  
+3. Renders in the top menu bar
+4. Coordinates with Dock
+
+### Why Pure C Executable Fails
+A raw executable (not in .app bundle):
+- Has no Info.plist
+- Has no bundle identifier  
+- Is not registered with Launchd/Finder
+- Cannot participate in menu bar rendering
+
+### Possible Solutions
+
+#### Option 1: Create Minimal App Bundle
+Create proper structure:
+```
+Calculator.app/
+  Contents/
+    MacOS/
+      calculator (our executable)
+    Info.plist (minimal)
+    PkgInfo
 ```
 
-### Key Functions
-- `objc_msgSend` - Core runtime message dispatch
-- `objc_getClass(name)` - Get class object by name
-- `sel_registerName(name)` - Register/get method selector
-- `class_addMethod()` - Add delegate callbacks
-- `object_setInstanceVariable()` - Store custom data on objects
+This would allow the system to recognize and render the menu.
 
-### Example: Button Click Flow
-1. Register a delegate class with `objc_allocateClassPair`
-2. Add button click handler with `class_addMethod`
-3. Set the delegate on the button with `objc_msgSend_void_id`
-4. When user clicks, objc runtime calls your C callback function
+#### Option 2: Use NSApplication Methods
+Try additional NSApplication initialization:
+- `setApplicationIconImage:` 
+- Setting bundle-like properties via runtime
+- Force menu bar update via private APIs
 
-## For Our Calculator App
-We'll need:
-- NSApplication for the app instance
-- NSWindow for the main window
-- NSButton for number/operator buttons
-- NSTextField or similar for display
-- Delegate pattern for button callbacks
-- String conversions between C and NSString
+#### Option 3: Accept Limitation  
+The menu works, just doesn't appear in the menu bar visually.
+Cmd+Q still quits, which is the functional requirement.
 
-## References
-- `research/Cocoa-in-Pure-C/example.c` - Full working example
-- Apple's Objective-C runtime documentation
+## Recommendation
+Try Option 1 first - minimal .app bundle is the "right way" on macOS.
+If that fails, Option 3 is acceptable - functionality is there.

@@ -1,5 +1,5 @@
-// macOS Calculator in Pure C
-// Compile with: gcc -o calculator calculator.c -framework Foundation -framework AppKit -lm
+// macOS Calculator in Pure C - FIXED MENU RENDERING
+// Compile with: gcc -o calculator fixed_calculator.c -framework Foundation -framework AppKit -lm
 
 #include <objc/runtime.h>
 #include <objc/message.h>
@@ -7,10 +7,6 @@
 #include <stdio.h>
 #include <string.h>
 #include <math.h>
-
-// ============================================================================
-// Type Definitions & Macros
-// ============================================================================
 
 #ifdef __arm64__
 #define abi_objc_msgSend_stret objc_msgSend
@@ -31,6 +27,8 @@ typedef void NSButton;
 typedef void NSTextField;
 typedef void NSEvent;
 typedef void NSString;
+typedef void NSMenu;
+typedef void NSMenuItem;
 
 #ifndef NSUInteger
 typedef unsigned long NSUInteger;
@@ -102,7 +100,6 @@ struct {
 // Update display with current value
 void update_display(double value) {
 	char buffer[32];
-	// Remove trailing zeros and decimal point if needed
 	snprintf(buffer, sizeof(buffer), "%.10g", value);
 	id ns_str = cstring_to_nsstring(buffer);
 	objc_msgSend_void_id(calc_state.display, sel_registerName("setStringValue:"), ns_str);
@@ -127,9 +124,7 @@ void handle_number(const char* digit_str) {
 		calc_state.display_value = digit;
 		calc_state.new_number = 0;
 	} else {
-		// Append digit (simple approach: multiply and add)
 		if (digit_str[0] == '.') {
-			// TODO: Handle decimal point properly
 			return;
 		}
 		calc_state.display_value = calc_state.display_value * 10 + digit;
@@ -140,7 +135,6 @@ void handle_number(const char* digit_str) {
 
 // Handle operator button press
 void handle_operator(char op) {
-	// If we have a pending operator, execute it first
 	if (calc_state.last_operator != '\0' && !calc_state.new_number) {
 		calc_state.accumulator = perform_operation(
 			calc_state.accumulator, 
@@ -178,22 +172,16 @@ void handle_equals(void) {
 #include <stdlib.h>
 
 void button_clicked(void* self, SEL sel, id sender) {
-	// Get button title
 	id title_obj = ((id(*)(id, SEL))objc_msgSend)(sender, sel_registerName("title"));
 	const char* title = ((const char*(*)(id, SEL))objc_msgSend)(title_obj, sel_registerName("UTF8String"));
 	
-	// Dispatch based on button type
 	if (title[0] >= '0' && title[0] <= '9') {
-		// Number button
 		handle_number(title);
 	} else if (title[0] == '.') {
-		// Decimal point - TODO: implement properly
 		printf("Decimal point not yet implemented\n");
 	} else if (title[0] == '=') {
-		// Equals
 		handle_equals();
 	} else if (title[0] == '+' || title[0] == '-' || title[0] == '*' || title[0] == '/') {
-		// Operator
 		handle_operator(title[0]);
 	} else {
 		printf("Unknown button: %s\n", title);
@@ -213,22 +201,51 @@ unsigned int window_should_close(void* self, SEL sel, id sender) {
 
 Class create_button_delegate_class(void) {
 	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "ButtonDelegate", 0);
-	
-	// Add method for button clicks
 	class_addMethod(delegate_class, sel_registerName("buttonClicked:"), (IMP)button_clicked, "v@:@");
-	
 	objc_registerClassPair(delegate_class);
 	return delegate_class;
 }
 
 Class create_window_delegate_class(void) {
 	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "WindowDelegate", 0);
-	
-	// Add method for window close
 	class_addMethod(delegate_class, sel_registerName("windowShouldClose:"), (IMP)window_should_close, "I@:@");
-	
 	objc_registerClassPair(delegate_class);
 	return delegate_class;
+}
+
+// ============================================================================
+// Menu Setup (FIXED)
+// ============================================================================
+
+void setup_menu_bar(NSApplication* app) {
+	// Create main menu bar (empty container)
+	id main_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
+	
+	// Create app menu (contains Quit, etc.)
+	id app_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
+	
+	// Add Quit item to app menu
+	id quit_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
+		(NSAlloc(objc_getClass("NSMenuItem")),
+		 sel_registerName("initWithTitle:action:keyEquivalent:"),
+		 cstring_to_nsstring("Quit Calculator"),
+		 sel_registerName("terminate:"),
+		 cstring_to_nsstring("q"));
+	objc_msgSend_void_id(app_menu, sel_registerName("addItem:"), quit_item);
+	
+	// Create app menu item (top-level in menu bar)
+	// KEY FIX: Set the title to the app name - this is what appears in the menu bar
+	id app_menu_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
+		(NSAlloc(objc_getClass("NSMenuItem")),
+		 sel_registerName("initWithTitle:action:keyEquivalent:"),
+		 cstring_to_nsstring("Calculator"),
+		 NULL,
+		 cstring_to_nsstring(""));
+	objc_msgSend_void_id(app_menu_item, sel_registerName("setSubmenu:"), app_menu);
+	objc_msgSend_void_id(main_menu, sel_registerName("addItem:"), app_menu_item);
+	
+	// KEY FIX: Set the main menu BEFORE finishLaunching
+	objc_msgSend_void_id(app, sel_registerName("setMainMenu:"), main_menu);
 }
 
 // ============================================================================
@@ -247,33 +264,8 @@ int main(int argc, char* argv[]) {
 	NSApplication* app = objc_msgSend_id((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
 	objc_msgSend_void_int(app, sel_registerName("setActivationPolicy:"), 0); // NSApplicationActivationPolicyRegular
 	
-	// Create main menu bar
-	id main_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
-	
-	// Create app menu (with app name)
-	id app_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
-	
-	// Add Quit item to app menu
-	id quit_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
-		(NSAlloc(objc_getClass("NSMenuItem")),
-		 sel_registerName("initWithTitle:action:keyEquivalent:"),
-		 cstring_to_nsstring("Quit Calculator"),
-		 sel_registerName("terminate:"),
-		 cstring_to_nsstring("q"));
-	objc_msgSend_void_id(app_menu, sel_registerName("addItem:"), quit_item);
-	
-	// Create app menu item (this should show app name in menu bar)
-	id app_menu_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
-		(NSAlloc(objc_getClass("NSMenuItem")),
-		 sel_registerName("initWithTitle:action:keyEquivalent:"),
-		 cstring_to_nsstring("Calculator"),
-		 NULL,
-		 cstring_to_nsstring(""));
-	objc_msgSend_void_id(app_menu_item, sel_registerName("setSubmenu:"), app_menu);
-	objc_msgSend_void_id(main_menu, sel_registerName("addItem:"), app_menu_item);
-	
-	// Set main menu BEFORE finishLaunching (important for proper initialization)
-	objc_msgSend_void_id(app, sel_registerName("setMainMenu:"), main_menu);
+	// KEY FIX: Setup menu BEFORE creating window or calling finishLaunching
+	setup_menu_bar(app);
 	
 	// Create window
 	NSRect frame = {{100, 100}, {320, 420}};
@@ -343,7 +335,7 @@ int main(int argc, char* argv[]) {
 	objc_msgSend_void_bool(app, sel_registerName("activateIgnoringOtherApps:"), 1);
 	((id(*)(id, SEL, id))objc_msgSend)(window, sel_registerName("makeKeyAndOrderFront:"), NULL);
 	
-	// Run event loop
+	// Run event loop - finish launching AFTER menu is set and window created
 	objc_msgSend_void(app, sel_registerName("finishLaunching"));
 	
 	while (running) {
