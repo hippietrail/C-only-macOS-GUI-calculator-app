@@ -72,6 +72,7 @@ typedef NS_ENUM(NSUInteger, NSTextAlignment) {
 #define objc_msgSend_void_float		((void (*)(id, SEL, CGFloat))objc_msgSend)
 #define objc_msgSend_void_double	((void (*)(id, SEL, double))objc_msgSend)
 #define objc_msgSend_id_char_const	((id (*)(id, SEL, const char *))objc_msgSend)
+#define objc_msgSend_void_id_id		((void (*)(id, SEL, id, id))objc_msgSend)
 
 #define NSAlloc(nsclass) objc_msgSend_id((id)nsclass, sel_registerName("alloc"))
 #define NSRelease(obj) objc_msgSend_id((id)obj, sel_registerName("release"))
@@ -229,12 +230,9 @@ void button_clicked(void* self, SEL sel, id sender) {
 	const char* title = ((const char*(*)(id, SEL))objc_msgSend)(title_obj, sel_registerName("UTF8String"));
 	
 	// Dispatch based on button type
-	if (title[0] >= '0' && title[0] <= '9') {
-		// Number button
+	if ((title[0] >= '0' && title[0] <= '9') || title[0] == '.') {
+		// Number button or decimal point
 		handle_number(title);
-	} else if (title[0] == '.') {
-		// Decimal point - TODO: implement properly
-		printf("Decimal point not yet implemented\n");
 	} else if (title[0] == '=') {
 		// Equals
 		handle_equals();
@@ -250,10 +248,13 @@ void button_clicked(void* self, SEL sel, id sender) {
 // Delegate Class Setup
 // ============================================================================
 
-BOOL running = 1;
-
 unsigned int window_should_close(void* self, SEL sel, id sender) {
-	running = 0;
+	// When window close button is pressed, terminate the application
+	// NSApplication_run() will handle the shutdown
+	id app = ((id(*)(id, SEL))objc_msgSend)
+		((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
+	// terminate: takes a sender argument
+	objc_msgSend_void_id(app, sel_registerName("terminate:"), NULL);
 	return 1;
 }
 
@@ -327,6 +328,10 @@ int main(int argc, char* argv[]) {
 	// Set main menu BEFORE finishLaunching (important for proper initialization)
 	objc_msgSend_void_id(app, sel_registerName("setMainMenu:"), main_menu);
 	
+	// Finish launching to complete application initialization
+	// This is CRITICAL for menu bar rendering
+	objc_msgSend_void(app, sel_registerName("finishLaunching"));
+	
 	// Create window
 	NSRect frame = {{100, 100}, {320, 420}};
 	NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
@@ -395,24 +400,9 @@ int main(int argc, char* argv[]) {
 	objc_msgSend_void_bool(app, sel_registerName("activateIgnoringOtherApps:"), 1);
 	((id(*)(id, SEL, id))objc_msgSend)(window, sel_registerName("makeKeyAndOrderFront:"), NULL);
 	
-	// Run event loop
-	objc_msgSend_void(app, sel_registerName("finishLaunching"));
-	
-	while (running) {
-		id pool = objc_msgSend_id(NSAlloc(objc_getClass("NSAutoreleasePool")), sel_registerName("init"));
-		
-		id event = ((id(*)(id, SEL, unsigned long long, void*, id, int))objc_msgSend)
-			(app, sel_registerName("nextEventMatchingMask:untilDate:inMode:dequeue:"), 
-			 ~0ULL, NULL, 
-			 ((id(*)(id, SEL, const char*))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), "kCFRunLoopDefaultMode"),
-			 1);
-		
-		if (event != NULL) {
-			objc_msgSend_void_id(app, sel_registerName("sendEvent:"), event);
-		}
-		objc_msgSend_void(app, sel_registerName("updateWindows"));
-		NSRelease(pool);
-	}
+	// Run event loop using NSApplication's run method
+	// This is the standard Apple-approved way and handles menu bar rendering properly
+	objc_msgSend_void(app, sel_registerName("run"));
 	
 	return 0;
 }
