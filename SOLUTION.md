@@ -28,25 +28,30 @@ The application uses pure C with Objective-C runtime calls via `objc_msgSend`:
 
 ### Key Components
 
-**Menu Setup** (calculator.c, lines 297-333):
+**Menu Setup** (calculator.c, main function):
 - Creates NSMenu and NSMenuItem objects programmatically
 - Dynamically reads app name from NSProcessInfo
 - Sets up Quit menu item with Cmd+Q shortcut
-- Calls `finishLaunching()` before `run()` for proper menu bar initialization
+- Sets app delegate before finishLaunching
 
-**UI Creation** (calculator.c, lines 335-397):
-- Creates NSWindow with title, closable, and resizable styles
-- Creates NSTextField for display
-- Creates 16 calculator buttons in a 4x5 grid
-- Wires button clicks to C callback function
+**App Delegate Callback** (calculator.c, `app_did_finish_launching`):
+- Window and UI created **during** finishLaunching callback (not after)
+- `activateIgnoringOtherApps:` called after window creation for immediate foreground rendering
+- This ensures menu appears immediately without app-switching workaround
 
 **Calculator Logic** (calculator.c, lines 105-219):
 - Pure C logic for arithmetic operations
 - Maintains state: display, accumulator, operator, decimal tracking
 
-### Known Quirks
+### Critical Insight: App Delegate Timing
 
-**Initial Menu Visibility**: The menu bar doesn't appear until the app window comes to the foreground. This is a macOS behavior for raw executables without bundle metadata. Solution: Switch to another app and back to the calculator, or click on it in the Dock.
+The key to making the menu appear immediately is **creating the window during the finishLaunching callback**, not after. The sequence is:
+
+1. Set app delegate with `setDelegate:` 
+2. Set main menu with `setMainMenu:`
+3. Call `finishLaunching()` - triggers `applicationDidFinishLaunching:` callback
+4. In the callback: create window, add UI, call `activateIgnoringOtherApps:`
+5. After callback returns: call `run()` for event loop
 
 This matches the behavior of the minimal Objective-C experiment in the related `objc-gui-menu-without-bundle-or-plist-but-with-quit-menu-item` project.
 
