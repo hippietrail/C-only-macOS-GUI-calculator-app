@@ -7,24 +7,26 @@ Menu was functionally working (Cmd+Q quits) but didn't render visually in the me
 
 ### Root Cause Analysis
 macOS menu bar rendering is controlled by system-level infrastructure:
-- **Dock/Finder integration**: Requires Info.plist in app bundle
-- **Menu bar graphics rendering**: Handled by Windowserver/Aqua
-- **Bundle validation**: System checks for proper .app bundle structure
+- **Activation policy**: NSApplicationActivationPolicyRegular required on macOS 10.6+
+- **Windowserver/Aqua**: Handles menu bar graphics rendering
+- **Bundle metadata**: Info.plist provides custom app naming and integration
 
-The menu bar in macOS is rendered by a system service that:
-1. Queries app bundles for Info.plist
-2. Reads app name, icon, and menu configuration  
-3. Renders in the top menu bar
-4. Coordinates with Dock
+Menu bar rendering works in two scenarios:
+1. **Bundled apps (.app)**: Uses Info.plist CFBundleName for professional menu title
+2. **Raw executables**: Can render menus with default/executable name as app title
 
-### Why Pure C Executable Fails
-A raw executable (not in .app bundle):
-- Has no Info.plist for app metadata
-- Has no bundle identifier  
-- Is not registered with Launchd/Finder
-- Cannot participate in menu bar rendering
+The distinction is:
+- **Menu rendering**: Works for both bundled and non-bundled
+- **Professional naming**: Requires bundle with Info.plist
+- **Full integration**: Requires proper .app bundle structure
 
-However, it *can* create NSMenu programmatically via objc_msgSend (why Cmd+Q works).
+### Why Previous Attempt Failed
+The original code likely failed because:
+- NSApplicationActivationPolicy wasn't properly set early enough, OR
+- Menu was created AFTER finishLaunching instead of BEFORE, OR
+- Process hadn't fully initialized menu bar support
+
+The actual blocking issue was NOT the lack of a bundle - it was likely the setup sequence or activation policy timing.
 
 ## Reference Projects
 

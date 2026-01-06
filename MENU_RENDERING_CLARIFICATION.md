@@ -101,23 +101,58 @@ We should say:
 > but bundle structure is the recommended standard approach for
 > complete macOS integration."
 
-## Next Steps
+## Honest Assessment
 
-1. Test raw executable menu rendering
-2. Document what actually appears
-3. Clarify the distinction between:
-   - Menu rendering working at all
-   - Menu rendering with proper/custom naming
-   - Full macOS app integration
-4. Update all documentation with accurate information
+After review:
 
-## The Broader Point
+1. **What we did**: Created bundle structure + improved code
+2. **What was claimed**: Bundle required for menu rendering
+3. **What the AI says**: Raw executables can render menus with default naming
+4. **What we didn't test**: Whether raw executable actually renders menu now
 
-The AI is correct that we should be precise about:
-- What's required (activation policy, proper setup)
-- What's recommended (bundle structure)
-- What's optional (specific naming)
+### Why We Can't Definitively Test Here
 
-Rather than conflating "works with defaults" with "doesn't work at all."
+In this environment (CI/command-line), we can't visually verify menu bar rendering:
+- No display server
+- Can't run GUI tests
+- Can't capture screenshots
 
-This is a good reminder to test assumptions rather than accept them as facts.
+### What We Know for Certain
+
+✅ Bundle approach definitely works:
+```bash
+open Calculator.app  # Renders professional menu bar
+```
+
+❓ Raw executable may work:
+```bash
+./calculator_raw     # Unknown if menu renders with default app name
+```
+
+## Lessons & Corrections
+
+The AI is correct that we conflated:
+1. **Doesn't render with custom name** → Assumed means **doesn't render at all**
+2. **Bundle provides integration** → Assumed means **bundle is required**
+
+Better framing:
+- Bundle structure: **Recommended standard** for professional menu integration
+- Raw executable: May work with **default/generic naming** but untested here
+- Activation policy: **Definitely required** (we confirmed this)
+- Menu setup sequence: **Critical** (must be before finishLaunching)
+
+## What Should Have Been Done
+
+1. Test raw executable thoroughly before assuming bundle was required
+2. Try the raw executable with the improved activation policy sequence
+3. Document findings (working vs not working) with evidence
+4. Only add bundle as "best practice" recommendation, not "requirement"
+
+## Current Status
+
+We have a working solution (bundle + improved code) but:
+- We can't definitively say why the original failed
+- We can't test if raw executable works now
+- We made assumptions about macOS behavior
+
+This is a good lesson in: **Test assertions rather than accepting them as fact.**
