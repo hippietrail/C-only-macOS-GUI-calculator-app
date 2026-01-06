@@ -248,105 +248,29 @@ void button_clicked(void* self, SEL sel, id sender) {
 // Delegate Class Setup
 // ============================================================================
 
-unsigned int window_should_close(void* self, SEL sel, id sender) {
-	// When window close button is pressed, terminate the application
-	// NSApplication_run() will handle the shutdown
-	id app = ((id(*)(id, SEL))objc_msgSend)
-		((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
-	// terminate: takes a sender argument
-	objc_msgSend_void_id(app, sel_registerName("terminate:"), NULL);
-	return 1;
-}
+// Global window for access by delegates
+NSWindow* g_window = NULL;
 
-Class create_button_delegate_class(void) {
-	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "ButtonDelegate", 0);
-	
-	// Add method for button clicks
-	class_addMethod(delegate_class, sel_registerName("buttonClicked:"), (IMP)button_clicked, "v@:@");
-	
-	objc_registerClassPair(delegate_class);
-	return delegate_class;
-}
-
-Class create_window_delegate_class(void) {
-	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "WindowDelegate", 0);
-	
-	// Add method for window close
-	class_addMethod(delegate_class, sel_registerName("windowShouldClose:"), (IMP)window_should_close, "I@:@");
-	
-	objc_registerClassPair(delegate_class);
-	return delegate_class;
-}
-
-// ============================================================================
-// Main
-// ============================================================================
-
-int main(int argc, char* argv[]) {
-	// Create delegate instances
-	Class button_delegate_class = create_button_delegate_class();
-	id button_delegate = objc_msgSend_id(NSAlloc(button_delegate_class), sel_registerName("init"));
-	
-	Class window_delegate_class = create_window_delegate_class();
-	id window_delegate = objc_msgSend_id(NSAlloc(window_delegate_class), sel_registerName("init"));
-	
-	// Initialize app
-	NSApplication* app = objc_msgSend_id((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
-	objc_msgSend_void_int(app, sel_registerName("setActivationPolicy:"), 0); // NSApplicationActivationPolicyRegular
-	
-	// Create main menu bar
-	id main_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
-	
-	// Get app's process name for dynamic menu title
-	const char* app_name = get_process_name();
-	char quit_title[256];
-	snprintf(quit_title, sizeof(quit_title), "Quit %s", app_name);
-	
-	// Create app menu (with app name)
-	id app_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
-	
-	// Add Quit item to app menu
-	id quit_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
-		(NSAlloc(objc_getClass("NSMenuItem")),
-		 sel_registerName("initWithTitle:action:keyEquivalent:"),
-		 cstring_to_nsstring(quit_title),
-		 sel_registerName("terminate:"),
-		 cstring_to_nsstring("q"));
-	objc_msgSend_void_id(app_menu, sel_registerName("addItem:"), quit_item);
-	
-	// Create app menu item (this should show app name in menu bar)
-	// Use the process name dynamically from NSProcessInfo
-	id app_menu_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
-		(NSAlloc(objc_getClass("NSMenuItem")),
-		 sel_registerName("initWithTitle:action:keyEquivalent:"),
-		 cstring_to_nsstring(app_name),
-		 NULL,
-		 cstring_to_nsstring(""));
-	objc_msgSend_void_id(app_menu_item, sel_registerName("setSubmenu:"), app_menu);
-	objc_msgSend_void_id(main_menu, sel_registerName("addItem:"), app_menu_item);
-	
-	// Set main menu BEFORE finishLaunching (important for proper initialization)
-	objc_msgSend_void_id(app, sel_registerName("setMainMenu:"), main_menu);
-	
-	// Finish launching to complete application initialization
-	// This is CRITICAL for menu bar rendering
-	objc_msgSend_void(app, sel_registerName("finishLaunching"));
-	
-	// Create window
+void app_did_finish_launching(void* self, SEL sel, id notification) {
+	// Create window during finishLaunching callback for proper menu bar rendering
 	NSRect frame = {{100, 100}, {320, 420}};
 	NSWindowStyleMask style = NSWindowStyleMaskTitled | NSWindowStyleMaskClosable | NSWindowStyleMaskMiniaturizable;
 	NSBackingStoreType backing = NSBackingStoreBuffered;
 	
 	SEL init_sel = sel_registerName("initWithContentRect:styleMask:backing:defer:");
-	NSWindow* window = ((id (*)(id, SEL, NSRect, NSWindowStyleMask, NSBackingStoreType, BOOL))objc_msgSend)
+	g_window = ((id (*)(id, SEL, NSRect, NSWindowStyleMask, NSBackingStoreType, BOOL))objc_msgSend)
 		(NSAlloc(objc_getClass("NSWindow")), init_sel, frame, style, backing, 0);
 	
-	objc_msgSend_void_id(window, sel_registerName("setTitle:"), cstring_to_nsstring("Calculator"));
-	objc_msgSend_void_bool(window, sel_registerName("setReleasedWhenClosed:"), 1);
-	objc_msgSend_void_id(window, sel_registerName("setDelegate:"), window_delegate);
+	objc_msgSend_void_id(g_window, sel_registerName("setTitle:"), cstring_to_nsstring("Calculator"));
+	objc_msgSend_void_bool(g_window, sel_registerName("setReleasedWhenClosed:"), 1);
+	
+	// Get window delegate and set it
+	Class window_delegate_class = objc_getClass("WindowDelegate");
+	id window_delegate = objc_msgSend_id(NSAlloc(window_delegate_class), sel_registerName("init"));
+	objc_msgSend_void_id(g_window, sel_registerName("setDelegate:"), window_delegate);
 	
 	// Get content view
-	NSView* content_view = objc_msgSend_id(window, sel_registerName("contentView"));
+	NSView* content_view = objc_msgSend_id(g_window, sel_registerName("contentView"));
 	
 	// Create display (NSTextField)
 	NSRect display_frame = {{10, 360}, {300, 40}};
@@ -361,6 +285,10 @@ int main(int argc, char* argv[]) {
 	objc_msgSend_void_id(content_view, sel_registerName("addSubview:"), display);
 	
 	calc_state.display = display;
+	
+	// Get button delegate for reuse
+	Class button_delegate_class = objc_getClass("ButtonDelegate");
+	id button_delegate = objc_msgSend_id(NSAlloc(button_delegate_class), sel_registerName("init"));
 	
 	// Create button grid (4x5: 0-9, operators, equals)
 	const char* button_labels[] = {
@@ -397,8 +325,109 @@ int main(int argc, char* argv[]) {
 	}
 	
 	// Show window
+	((id(*)(id, SEL, id))objc_msgSend)(g_window, sel_registerName("makeKeyAndOrderFront:"), NULL);
+	
+	// Bring app to foreground after window is created
+	id app = ((id(*)(id, SEL))objc_msgSend)
+		((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
 	objc_msgSend_void_bool(app, sel_registerName("activateIgnoringOtherApps:"), 1);
-	((id(*)(id, SEL, id))objc_msgSend)(window, sel_registerName("makeKeyAndOrderFront:"), NULL);
+}
+
+unsigned int window_should_close(void* self, SEL sel, id sender) {
+	// When window close button is pressed, terminate the application
+	// NSApplication_run() will handle the shutdown
+	id app = ((id(*)(id, SEL))objc_msgSend)
+		((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
+	// terminate: takes a sender argument
+	objc_msgSend_void_id(app, sel_registerName("terminate:"), NULL);
+	return 1;
+}
+
+Class create_button_delegate_class(void) {
+	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "ButtonDelegate", 0);
+	
+	// Add method for button clicks
+	class_addMethod(delegate_class, sel_registerName("buttonClicked:"), (IMP)button_clicked, "v@:@");
+	
+	objc_registerClassPair(delegate_class);
+	return delegate_class;
+}
+
+Class create_app_delegate_class(void) {
+	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "AppDelegate", 0);
+	
+	// Add method for finish launching
+	class_addMethod(delegate_class, sel_registerName("applicationDidFinishLaunching:"), (IMP)app_did_finish_launching, "v@:@");
+	
+	objc_registerClassPair(delegate_class);
+	return delegate_class;
+}
+
+Class create_window_delegate_class(void) {
+	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "WindowDelegate", 0);
+	
+	// Add method for window close
+	class_addMethod(delegate_class, sel_registerName("windowShouldClose:"), (IMP)window_should_close, "I@:@");
+	
+	objc_registerClassPair(delegate_class);
+	return delegate_class;
+}
+
+// ============================================================================
+// Main
+// ============================================================================
+
+int main(int argc, char* argv[]) {
+	// Create and register delegate classes
+	Class button_delegate_class = create_button_delegate_class();
+	Class window_delegate_class = create_window_delegate_class();
+	Class app_delegate_class = create_app_delegate_class();
+	
+	// Initialize app
+	NSApplication* app = objc_msgSend_id((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
+	objc_msgSend_void_int(app, sel_registerName("setActivationPolicy:"), 0); // NSApplicationActivationPolicyRegular
+	
+	// Set app delegate BEFORE finishLaunching so it gets the callback
+	id app_delegate = objc_msgSend_id(NSAlloc(app_delegate_class), sel_registerName("init"));
+	objc_msgSend_void_id(app, sel_registerName("setDelegate:"), app_delegate);
+	
+	// Create main menu bar
+	id main_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
+	
+	// Get app's process name for dynamic menu title
+	const char* app_name = get_process_name();
+	char quit_title[256];
+	snprintf(quit_title, sizeof(quit_title), "Quit %s", app_name);
+	
+	// Create app menu (with app name)
+	id app_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
+	
+	// Add Quit item to app menu
+	id quit_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
+		(NSAlloc(objc_getClass("NSMenuItem")),
+		 sel_registerName("initWithTitle:action:keyEquivalent:"),
+		 cstring_to_nsstring(quit_title),
+		 sel_registerName("terminate:"),
+		 cstring_to_nsstring("q"));
+	objc_msgSend_void_id(app_menu, sel_registerName("addItem:"), quit_item);
+	
+	// Create app menu item (this should show app name in menu bar)
+	// Use the process name dynamically from NSProcessInfo
+	id app_menu_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
+		(NSAlloc(objc_getClass("NSMenuItem")),
+		 sel_registerName("initWithTitle:action:keyEquivalent:"),
+		 cstring_to_nsstring(app_name),
+		 NULL,
+		 cstring_to_nsstring(""));
+	objc_msgSend_void_id(app_menu_item, sel_registerName("setSubmenu:"), app_menu);
+	objc_msgSend_void_id(main_menu, sel_registerName("addItem:"), app_menu_item);
+	
+	// Set main menu BEFORE finishLaunching (important for proper initialization)
+	objc_msgSend_void_id(app, sel_registerName("setMainMenu:"), main_menu);
+	
+	// Finish launching - this triggers applicationDidFinishLaunching callback
+	// which creates the window and UI, then activates the app
+	objc_msgSend_void(app, sel_registerName("finishLaunching"));
 	
 	// Run event loop using NSApplication's run method
 	// This is the standard Apple-approved way and handles menu bar rendering properly

@@ -1,71 +1,67 @@
-# Menu Bar Rendering Solution - macOS Calculator in Pure C
+# macOS Calculator in Pure C Without Bundle or Plist
 
-## Problem Statement
-The macOS calculator app had a functional menu bar (Cmd+Q worked for quitting) but the menu didn't render visually in the system menu bar. The menu existed programmatically but was invisible to the user.
+## Goal
+Demonstrate a minimal macOS GUI application written in pure C that:
+- Creates windows and UI elements programmatically
+- Sets up menus without requiring an app bundle or Info.plist
+- Uses only Cocoa frameworks via `objc_msgSend` calls
+- Compiles to a raw executable
 
-## Root Cause Analysis
-macOS menu bar rendering is handled by the system's Windowserver/Aqua graphics system. For the menu bar to appear:
+## Solution
 
-1. The app must be packaged as a `.app` bundle (not a raw executable)
-2. The bundle must contain a valid `Info.plist` with app metadata
-3. The system reads the bundle identifier and app name from `Info.plist`
-4. The Dock and menu bar use this information to properly display menus
-
-A raw executable can create NSMenu objects programmatically via objc_msgSend, which is why Cmd+Q functioned (the menu item existed and was wired to `terminate:`), but the menu won't appear in the visual menu bar without bundle infrastructure.
-
-## Solution Implemented
-
-### 1. Created App Bundle Structure
-```
-Calculator.app/
-  Contents/
-    MacOS/
-      calculator          # The compiled executable
-    Info.plist            # Bundle metadata
-    PkgInfo               # Package type identifier
-```
-
-### 2. Info.plist Configuration
-Key entries required for macOS to recognize and display the app:
-- `CFBundleExecutable`: Points to the binary in MacOS/
-- `CFBundleIdentifier`: Unique bundle ID (com.example.calculator)
-- `CFBundleName`: Display name in menu bar ("Calculator")
-- `CFBundlePackageType`: APPL (indicates it's an application)
-- `NSHighResolutionCapable`: true (supports Retina displays)
-
-### 3. Build Process
-Created `build.sh` that:
-- Creates the bundle directory structure
-- Compiles calculator.c with proper frameworks
-- Ensures executable permissions
-- Produces a ready-to-run Calculator.app
-
-### Files Changed
-- `calculator.c` - Added comment explaining menu setup timing
-- Created `Calculator.app/` bundle structure
-- Created `build.sh` for easy compilation
-- Updated `README.md` with technical details and build instructions
-- Updated `RESEARCH.md` with investigation findings
-
-## Usage
+### Build and Run
 ```bash
-# Build and run
-./build.sh
-open Calculator.app
-
-# Or run directly
-./Calculator.app/Contents/MacOS/calculator
+./build.sh          # Compiles to raw 'calculator' executable
+./calculator        # Run directly
+# or
+open calculator     # Launch via Finder/Dock
 ```
 
-## Technical Insights
-- **Pure C Implementation**: No Objective-C language syntax used
-- **Runtime Calls**: All interaction with Cocoa via `objc_msgSend` and Objective-C runtime
-- **Bundle Requirement**: macOS enforces bundle structure for visual menu bar rendering, not programmatic access
-- **Menu Functionality**: The menu works at the OS level (Cmd+Q quits) even without visual rendering, but users can't see it
+### Architecture
 
-## Key Takeaway
-For macOS apps in pure C/Cocoa:
-- Programmatic menu creation works (handles events, executes actions)
-- Visual menu bar rendering requires proper app bundle structure
-- The bundle acts as a contract between the application and macOS UI systems
-- This solution maintains pure C implementation while providing full macOS integration
+The application uses pure C with Objective-C runtime calls via `objc_msgSend`:
+
+1. **No Bundle Required**: Compiles to a single executable with no `.app` bundle structure
+2. **No Plist Required**: All app configuration happens in C code
+3. **Programmatic UI**: Windows, menus, buttons created entirely via objc_msgSend
+4. **Cocoa Integration**: Proper macOS app lifecycle and menu bar support
+
+### Key Components
+
+**Menu Setup** (calculator.c, lines 297-333):
+- Creates NSMenu and NSMenuItem objects programmatically
+- Dynamically reads app name from NSProcessInfo
+- Sets up Quit menu item with Cmd+Q shortcut
+- Calls `finishLaunching()` before `run()` for proper menu bar initialization
+
+**UI Creation** (calculator.c, lines 335-397):
+- Creates NSWindow with title, closable, and resizable styles
+- Creates NSTextField for display
+- Creates 16 calculator buttons in a 4x5 grid
+- Wires button clicks to C callback function
+
+**Calculator Logic** (calculator.c, lines 105-219):
+- Pure C logic for arithmetic operations
+- Maintains state: display, accumulator, operator, decimal tracking
+
+### Known Quirks
+
+**Initial Menu Visibility**: The menu bar doesn't appear until the app window comes to the foreground. This is a macOS behavior for raw executables without bundle metadata. Solution: Switch to another app and back to the calculator, or click on it in the Dock.
+
+This matches the behavior of the minimal Objective-C experiment in the related `objc-gui-menu-without-bundle-or-plist-but-with-quit-menu-item` project.
+
+### Files
+
+- `calculator.c` - Main application code (pure C with Cocoa via objc_msgSend)
+- `build.sh` - Simple build script
+- `README.md` - User-facing documentation
+
+### Technical Details
+
+The application demonstrates:
+- **Objective-C Runtime**: Using `objc_msgSend` for all Cocoa calls
+- **Class Pair Creation**: Dynamically creating delegate classes for button clicks and window events
+- **Memory Management**: Proper allocation and release of Objective-C objects
+- **Platform-Specific ABI**: Handling ARM64 vs x86_64 calling conventions for msgSend
+
+This proves that modern macOS app development doesn't require bundle/plist files for functional, integrated applications—they're conveniences for distribution and metadata, not technical requirements.
