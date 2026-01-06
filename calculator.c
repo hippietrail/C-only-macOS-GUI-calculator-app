@@ -109,8 +109,9 @@ struct {
 	double accumulator;
 	char last_operator;
 	BOOL new_number;
+	BOOL has_decimal;  // Track if current number has a decimal point
 	NSTextField* display;
-} calc_state = {0.0, 0.0, '\0', 1, NULL};
+} calc_state = {0.0, 0.0, '\0', 1, 0, NULL};
 
 // Update display with current value
 void update_display(double value) {
@@ -134,18 +135,48 @@ double perform_operation(double lhs, char op, double rhs) {
 
 // Handle number button press
 void handle_number(const char* digit_str) {
+	// Handle decimal point
+	if (digit_str[0] == '.') {
+		// Only add one decimal point per number
+		if (calc_state.has_decimal) {
+			return;  // Already has a decimal, ignore
+		}
+		calc_state.has_decimal = 1;
+		calc_state.new_number = 0;  // Don't start a new number
+		update_display(calc_state.display_value);
+		return;
+	}
+	
+	// Handle digit button
 	double digit = atof(digit_str);
 	
 	if (calc_state.new_number) {
+		// Starting a new number
 		calc_state.display_value = digit;
 		calc_state.new_number = 0;
+		calc_state.has_decimal = 0;
 	} else {
-		// Append digit (simple approach: multiply and add)
-		if (digit_str[0] == '.') {
-			// TODO: Handle decimal point properly
-			return;
+		// Appending to current number
+		if (calc_state.has_decimal) {
+			// We have a decimal - need to append fractional digits
+			// Count decimal places from the string representation
+			char buffer[32];
+			snprintf(buffer, sizeof(buffer), "%.10g", calc_state.display_value);
+			const char* decimal_pos = strchr(buffer, '.');
+			int decimal_places = decimal_pos ? strlen(decimal_pos + 1) : 0;
+			
+			// Calculate the multiplier (10^(decimal_places + 1))
+			double multiplier = 1.0;
+			for (int i = 0; i < decimal_places + 1; i++) {
+				multiplier *= 10.0;
+			}
+			
+			// Add the new digit in the appropriate decimal position
+			calc_state.display_value += digit / multiplier;
+		} else {
+			// No decimal yet - append digit normally
+			calc_state.display_value = calc_state.display_value * 10 + digit;
 		}
-		calc_state.display_value = calc_state.display_value * 10 + digit;
 	}
 	
 	update_display(calc_state.display_value);
@@ -167,6 +198,7 @@ void handle_operator(char op) {
 	
 	calc_state.last_operator = op;
 	calc_state.new_number = 1;
+	calc_state.has_decimal = 0;  // Reset decimal flag for next number
 }
 
 // Handle equals button press
@@ -181,6 +213,7 @@ void handle_equals(void) {
 		calc_state.accumulator = 0;
 		calc_state.last_operator = '\0';
 		calc_state.new_number = 1;
+		calc_state.has_decimal = 0;  // Reset decimal flag after equals
 	}
 }
 
