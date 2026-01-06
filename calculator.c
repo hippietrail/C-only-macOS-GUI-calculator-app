@@ -87,6 +87,19 @@ id cstring_to_nsstring(const char* cstr) {
 		 cstr);
 }
 
+// Convert NSString to C string
+const char* nsstring_to_cstring(id nsstr) {
+	return ((const char*(*)(id, SEL))objc_msgSend)
+		(nsstr, sel_registerName("UTF8String"));
+}
+
+// Get the app's process name (executable name)
+const char* get_process_name(void) {
+	id process_info = objc_msgSend_id((id)objc_getClass("NSProcessInfo"), sel_registerName("processInfo"));
+	id app_name = objc_msgSend_id(process_info, sel_registerName("processName"));
+	return nsstring_to_cstring(app_name);
+}
+
 // ============================================================================
 // Calculator State
 // ============================================================================
@@ -250,6 +263,11 @@ int main(int argc, char* argv[]) {
 	// Create main menu bar
 	id main_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
 	
+	// Get app's process name for dynamic menu title
+	const char* app_name = get_process_name();
+	char quit_title[256];
+	snprintf(quit_title, sizeof(quit_title), "Quit %s", app_name);
+	
 	// Create app menu (with app name)
 	id app_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
 	
@@ -257,16 +275,17 @@ int main(int argc, char* argv[]) {
 	id quit_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
 		(NSAlloc(objc_getClass("NSMenuItem")),
 		 sel_registerName("initWithTitle:action:keyEquivalent:"),
-		 cstring_to_nsstring("Quit Calculator"),
+		 cstring_to_nsstring(quit_title),
 		 sel_registerName("terminate:"),
 		 cstring_to_nsstring("q"));
 	objc_msgSend_void_id(app_menu, sel_registerName("addItem:"), quit_item);
 	
 	// Create app menu item (this should show app name in menu bar)
+	// Use the process name dynamically from NSProcessInfo
 	id app_menu_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
 		(NSAlloc(objc_getClass("NSMenuItem")),
 		 sel_registerName("initWithTitle:action:keyEquivalent:"),
-		 cstring_to_nsstring("Calculator"),
+		 cstring_to_nsstring(app_name),
 		 NULL,
 		 cstring_to_nsstring(""));
 	objc_msgSend_void_id(app_menu_item, sel_registerName("setSubmenu:"), app_menu);
