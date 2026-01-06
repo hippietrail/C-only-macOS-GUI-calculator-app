@@ -247,12 +247,13 @@ int main(int argc, char* argv[]) {
 	NSApplication* app = objc_msgSend_id((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
 	objc_msgSend_void_int(app, sel_registerName("setActivationPolicy:"), 0); // NSApplicationActivationPolicyRegular
 	
-	// Create simple menu
+	// Create main menu bar
 	id main_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
-	id app_menu_item = objc_msgSend_id(NSAlloc(objc_getClass("NSMenuItem")), sel_registerName("init"));
+	
+	// Create app menu (with app name)
 	id app_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
 	
-	// Add Quit item
+	// Add Quit item to app menu
 	id quit_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
 		(NSAlloc(objc_getClass("NSMenuItem")),
 		 sel_registerName("initWithTitle:action:keyEquivalent:"),
@@ -260,8 +261,17 @@ int main(int argc, char* argv[]) {
 		 sel_registerName("terminate:"),
 		 cstring_to_nsstring("q"));
 	objc_msgSend_void_id(app_menu, sel_registerName("addItem:"), quit_item);
+	
+	// Create app menu item (this should show app name in menu bar)
+	id app_menu_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
+		(NSAlloc(objc_getClass("NSMenuItem")),
+		 sel_registerName("initWithTitle:action:keyEquivalent:"),
+		 cstring_to_nsstring("Calculator"),
+		 NULL,
+		 cstring_to_nsstring(""));
 	objc_msgSend_void_id(app_menu_item, sel_registerName("setSubmenu:"), app_menu);
 	objc_msgSend_void_id(main_menu, sel_registerName("addItem:"), app_menu_item);
+	
 	objc_msgSend_void_id(app, sel_registerName("setMainMenu:"), main_menu);
 	
 	// Create window
