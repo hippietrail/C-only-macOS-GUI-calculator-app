@@ -204,6 +204,13 @@ void button_clicked(void* self, SEL sel, id sender) {
 // Delegate Class Setup
 // ============================================================================
 
+BOOL running = 1;
+
+unsigned int window_should_close(void* self, SEL sel, id sender) {
+	running = 0;
+	return 1;
+}
+
 Class create_button_delegate_class(void) {
 	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "ButtonDelegate", 0);
 	
@@ -214,18 +221,48 @@ Class create_button_delegate_class(void) {
 	return delegate_class;
 }
 
+Class create_window_delegate_class(void) {
+	Class delegate_class = objc_allocateClassPair(objc_getClass("NSObject"), "WindowDelegate", 0);
+	
+	// Add method for window close
+	class_addMethod(delegate_class, sel_registerName("windowShouldClose:"), (IMP)window_should_close, "I@:@");
+	
+	objc_registerClassPair(delegate_class);
+	return delegate_class;
+}
+
 // ============================================================================
 // Main
 // ============================================================================
 
 int main(int argc, char* argv[]) {
-	// Create delegate class and instance
-	Class delegate_class = create_button_delegate_class();
-	id button_delegate = objc_msgSend_id(NSAlloc(delegate_class), sel_registerName("init"));
+	// Create delegate instances
+	Class button_delegate_class = create_button_delegate_class();
+	id button_delegate = objc_msgSend_id(NSAlloc(button_delegate_class), sel_registerName("init"));
+	
+	Class window_delegate_class = create_window_delegate_class();
+	id window_delegate = objc_msgSend_id(NSAlloc(window_delegate_class), sel_registerName("init"));
 	
 	// Initialize app
 	NSApplication* app = objc_msgSend_id((id)objc_getClass("NSApplication"), sel_registerName("sharedApplication"));
 	objc_msgSend_void_int(app, sel_registerName("setActivationPolicy:"), 0); // NSApplicationActivationPolicyRegular
+	
+	// Create simple menu
+	id main_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
+	id app_menu_item = objc_msgSend_id(NSAlloc(objc_getClass("NSMenuItem")), sel_registerName("init"));
+	id app_menu = objc_msgSend_id(NSAlloc(objc_getClass("NSMenu")), sel_registerName("init"));
+	
+	// Add Quit item
+	id quit_item = ((id(*)(id, SEL, id, SEL, id))objc_msgSend)
+		(NSAlloc(objc_getClass("NSMenuItem")),
+		 sel_registerName("initWithTitle:action:keyEquivalent:"),
+		 cstring_to_nsstring("Quit Calculator"),
+		 sel_registerName("terminate:"),
+		 cstring_to_nsstring("q"));
+	objc_msgSend_void_id(app_menu, sel_registerName("addItem:"), quit_item);
+	objc_msgSend_void_id(app_menu_item, sel_registerName("setSubmenu:"), app_menu);
+	objc_msgSend_void_id(main_menu, sel_registerName("addItem:"), app_menu_item);
+	objc_msgSend_void_id(app, sel_registerName("setMainMenu:"), main_menu);
 	
 	// Create window
 	NSRect frame = {{100, 100}, {320, 420}};
@@ -238,6 +275,7 @@ int main(int argc, char* argv[]) {
 	
 	objc_msgSend_void_id(window, sel_registerName("setTitle:"), cstring_to_nsstring("Calculator"));
 	objc_msgSend_void_bool(window, sel_registerName("setReleasedWhenClosed:"), 1);
+	objc_msgSend_void_id(window, sel_registerName("setDelegate:"), window_delegate);
 	
 	// Get content view
 	NSView* content_view = objc_msgSend_id(window, sel_registerName("contentView"));
@@ -294,9 +332,24 @@ int main(int argc, char* argv[]) {
 	objc_msgSend_void_bool(app, sel_registerName("activateIgnoringOtherApps:"), 1);
 	((id(*)(id, SEL, id))objc_msgSend)(window, sel_registerName("makeKeyAndOrderFront:"), NULL);
 	
-	// Run app
+	// Run event loop
 	objc_msgSend_void(app, sel_registerName("finishLaunching"));
-	objc_msgSend_void(app, sel_registerName("run"));
+	
+	while (running) {
+		id pool = objc_msgSend_id(NSAlloc(objc_getClass("NSAutoreleasePool")), sel_registerName("init"));
+		
+		id event = ((id(*)(id, SEL, unsigned long long, void*, id, int))objc_msgSend)
+			(app, sel_registerName("nextEventMatchingMask:untilDate:inMode:dequeue:"), 
+			 ~0ULL, NULL, 
+			 ((id(*)(id, SEL, const char*))objc_msgSend)((id)objc_getClass("NSString"), sel_registerName("stringWithUTF8String:"), "kCFRunLoopDefaultMode"),
+			 1);
+		
+		if (event != NULL) {
+			objc_msgSend_void_id(app, sel_registerName("sendEvent:"), event);
+		}
+		objc_msgSend_void(app, sel_registerName("updateWindows"));
+		NSRelease(pool);
+	}
 	
 	return 0;
 }
