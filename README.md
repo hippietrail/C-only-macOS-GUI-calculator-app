@@ -7,28 +7,24 @@ A minimal working example calculator app built in pure C using Cocoa via `objc_m
 - Calculator UI with 16 buttons (0-9, +, -, *, /, =)
 - Display field showing results
 - Working arithmetic operations (+, -, *, /)
-- Menu without need of a Bundle
+- Native menu bar with Cmd+Q shortcut to quit
+- No bundle or plist file required
 
 ## Building
 
-### Option 1: Using build script (recommended)
+### Quick Start (Recommended)
 ```bash
 ./build.sh
-open Calculator.app
+./calculator
 ```
 
-### Option 2: Manual compilation
+### Manual Compilation
 ```bash
 gcc -o calculator calculator.c -framework Foundation -framework AppKit -lm
 ./calculator
 ```
 
-Or as an app bundle:
-```bash
-mkdir -p Calculator.app/Contents/MacOS
-gcc -o Calculator.app/Contents/MacOS/calculator calculator.c -framework Foundation -framework AppKit -lm
-open Calculator.app
-```
+You can also launch via Finder by double-clicking the executable or using `open calculator`.
 
 ### Implementation Notes
 - Uses `objc_msgSend()` for all runtime calls
