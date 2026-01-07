@@ -39,9 +39,10 @@ The application uses pure C with Objective-C runtime calls via `objc_msgSend`:
 - `activateIgnoringOtherApps:` called after window creation for immediate foreground rendering
 - This ensures menu appears immediately without app-switching workaround
 
-**Calculator Logic** (calculator.c, lines 105-219):
-- Pure C logic for arithmetic operations
+**Calculator Logic** (calculator.c, lines 105-220):
+- Pure C logic for arithmetic operations  
 - Maintains state: display, accumulator, operator, decimal tracking
+- Supports `+`, `-`, `*`, `/` operations and decimal point input
 
 ### Critical Insight: App Delegate Timing
 
