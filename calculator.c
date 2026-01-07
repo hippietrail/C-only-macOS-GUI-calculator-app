@@ -290,12 +290,12 @@ void app_did_finish_launching(void* self, SEL sel, id notification) {
 	Class button_delegate_class = objc_getClass("ButtonDelegate");
 	id button_delegate = objc_msgSend_id(NSAlloc(button_delegate_class), sel_registerName("init"));
 	
-	// Create button grid (4x5: 0-9, operators, equals)
+	// Create button grid (4x4: 0-9, operators, decimal, equals)
 	const char* button_labels[] = {
-		"7", "8", "9", "/",
-		"4", "5", "6", "*",
-		"1", "2", "3", "-",
-		"0", ".", "=", "+"
+	        "7", "8", "9", "/",
+	        "4", "5", "6", "*",
+	        "1", "2", "3", "-",
+	        "0", ".", "=", "+"
 	};
 	
 	CGFloat btn_width = 70;
