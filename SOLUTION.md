@@ -53,8 +53,6 @@ The key to making the menu appear immediately is **creating the window during th
 4. In the callback: create window, add UI, call `activateIgnoringOtherApps:`
 5. After callback returns: call `run()` for event loop
 
-This matches the behavior of the minimal Objective-C experiment in the related `objc-gui-menu-without-bundle-or-plist-but-with-quit-menu-item` project.
-
 ### Files
 
 - `calculator.c` - Main application code (pure C with Cocoa via objc_msgSend)
