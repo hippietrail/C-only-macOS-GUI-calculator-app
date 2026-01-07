@@ -34,3 +34,5 @@ open Calculator.app
 - Uses `objc_msgSend()` for all runtime calls
 - Custom delegate classes for window and button events
 - No Objective-C language features, pure C with runtime introspection
+
+Made with the help of [Amp Free](https://ampcode.com/free) from Sourcegraph and [Beads](https://github.com/steveyegge/beads) from Steve Yegge
