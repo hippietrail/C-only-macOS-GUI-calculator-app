@@ -80,3 +80,7 @@ The result is a minimal proof-of-concept showing that modern macOS app developme
 ---
 
 Made with [Amp Free](https://ampcode.com/free) and [Beads](https://github.com/steveyegge/beads)
+
+---
+
+Similar and related projects: [mac_load](https://github.com/hidefromkgb/mac_load) • [Silicon](https://github.com/EimaKve/Silicon) • 
